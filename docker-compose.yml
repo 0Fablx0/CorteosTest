@@ -1,0 +1,8 @@
+version: '3.4'
+
+services:
+  corteos:
+    image: ${DOCKER_REGISTRY-}corteos
+    build:
+      context: .\Corteos
+      dockerfile: Dockerfile
