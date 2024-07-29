@@ -1,19 +1,11 @@
 ﻿using Corteos.Controllers;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.IO;
-using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using Corteos.Controllers.Options;
 using Serilog;
-using Serilog.Hosting;
-using Serilog.Configuration;
-using Microsoft.Extensions.Logging;
 using Corteos.Logics;
 
 namespace Corteos
@@ -25,7 +17,6 @@ namespace Corteos
 
         static private void CreateHost()
         {
-            //Создание IoC контейнера и добавление туда сервисов
             _host = Host.CreateDefaultBuilder()
                 .ConfigureAppConfiguration((host, config) => config
                 .AddJsonFile("appSettings.json", true, true))
@@ -49,8 +40,13 @@ namespace Corteos
         {
             CreateHost();
             UnloadingCurrency unloadingController = _host.Services.GetRequiredService<UnloadingCurrency>();
-            await unloadingController.GetTodayCurrencyAsync(); //Получение выгрузки за день
-            await unloadingController.GetMonthCurrencyAsync(); //Получение недостающих выгрузок за текущий месяц
+            await unloadingController.GetTodayCurrencyAsync();
+
+            DateTime firstDayOfCurrentMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+            var startPeriod = firstDayOfCurrentMonth.AddMonths(-1);
+            var endPeriod = firstDayOfCurrentMonth.AddDays(-1);
+
+            await unloadingController.GetCurrencyInTimePeriodAsync(startPeriod, endPeriod);
             return;
         }
     }

@@ -7,30 +7,41 @@ using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Corteos.Controllers
 {
     class DBController
     {
-        private readonly ILogger _logger;
-        private readonly DataBaseOptions _options;
+        private ILogger _logger { get; }
+        private DataBaseOptions _options { get; }
 
         public DBController(IServiceProvider serviceProvider)
         {
             _options = serviceProvider.GetService<IOptions<DataBaseOptions>>().Value;
             _logger = serviceProvider.GetService<ILoggerFactory>().CreateLogger<DBController>();
-
         }
 
         private class DBContext : Microsoft.EntityFrameworkCore.DbContext
         {
             private readonly DataBaseOptions _options;
+            private readonly ILogger _logger;
             public DbSet<CurrencyModel> currencies { get; set; }
             public DbSet<ExchangeRateModel> exchangerates { get; set; }
-            public DBContext(DataBaseOptions options)
+            public DBContext(DBController controller)
             {
-                _options = options;
-                Database.EnsureCreated();
+                _options = controller._options;
+                _logger = controller._logger;
+                try
+                {
+                    Database.EnsureCreated();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Database connection error: {ex}");
+                    throw ex;
+                }
+
             }
             protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             {
@@ -44,36 +55,50 @@ namespace Corteos.Controllers
             }
         }
 
-
-        public void WriteValutes(List<(CurrencyModel, ExchangeRateModel)> Valutes)
+        /// <summary>
+        /// Запись в БД котировок валют
+        /// </summary>
+        /// <param name="valutes">Котировки валют</param>
+        /// <returns></returns>
+        public async Task WriteValutesAsync(List<(CurrencyModel, ExchangeRateModel)> valutes)
         {
-            using (DBContext db = new DBContext(_options))
+            if (valutes?.Count > 0)
             {
-                foreach (var x in Valutes)
+                using (DBContext db = new DBContext(this))
                 {
-                    if (db.currencies.SingleOrDefault(r => r.num_code == x.Item1.num_code) == null) //проверка на существование идентичного первичного ключа
+                    foreach (var (currency, exchangeRate) in valutes)
                     {
-                        db.currencies.Add(x.Item1);
+                        if (!await db.currencies.AnyAsync(r => r.num_code == currency.num_code))
+                        {
+                            await db.currencies.AddAsync(currency);
+                        }
+                        if (!await db.exchangerates.AnyAsync(r => r.date == exchangeRate.date))
+                        {
+                            var s = await db.exchangerates.AddAsync(exchangeRate);
+                        }
                     }
-                    if (!db.exchangerates.Any(r => r.date == x.Item2.date)) //проверка на существование идентичной части первичного ключа
-                    {
-                        db.exchangerates.Add(x.Item2);
-                    }
+                    var savedRecords = await db.SaveChangesAsync();
+                    _logger.LogInformation($"New records have added to the database : {savedRecords}");
                 }
-                db.SaveChanges();
             }
         }
 
-        public List<DateTime> GetDaysBeginingMonth()
+        /// <summary>
+        /// Получение дат имеющихся в БД курсов валют за переданный временной промежуток
+        /// <list type="number">
+        /// <item><param name="startPeriodDate"> Дата начала периода </param></item>
+        /// <item><param name="endPeriodDate"> Дата окончания периода </param></item>
+        /// </list>
+        /// </summary>
+        /// <returns> Даты за которые имеются курсы валют</returns>
+        public List<DateTime> GetContainedCurrencyDateInPeriod(DateTime startPeriodDate, DateTime endPeriodDate)
         {
-            DateTime firstMonthDate = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
             List<DateTime> monthDates;
-
-            using (DBContext db = new DBContext(_options))
+            using (DBContext db = new DBContext(this))
             {
-                monthDates = db.exchangerates.Select(x => x.date).Where(date => date >= firstMonthDate).Distinct().ToList();
+                monthDates = db.exchangerates.Select(x => x.date).Where(date => date >= startPeriodDate && date <= endPeriodDate).Distinct().ToList();
             }
-
+            _logger.LogInformation($"Database contains {monthDates.Count} dates for which there are exchange rates in the period from {startPeriodDate} to {endPeriodDate}");
             return monthDates;
         }
 

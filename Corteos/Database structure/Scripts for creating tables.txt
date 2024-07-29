@@ -1,0 +1,18 @@
+
+CREATE TABLE Currencies (
+num_code INT PRIMARY KEY,
+char_code varchar(5) NOT NULL,
+name varchar(255) NOT NULL
+);
+
+
+
+CREATE TABLE ExchangeRates (
+    date DATE NOT NULL,
+    num_code INT NOT NULL,
+    nominal INT NOT NULL,
+    value DECIMAL(10, 4) NOT NULL,
+    vunit_rate DECIMAL(10, 4) NOT NULL,
+    PRIMARY KEY (date, num_code),
+    FOREIGN KEY (num_code) REFERENCES Currencies(num_code)
+);

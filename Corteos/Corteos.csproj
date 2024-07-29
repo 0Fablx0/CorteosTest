@@ -245,7 +245,6 @@
     <Compile Include="Logics\UnloadingCurrency.cs" />
     <Compile Include="Models\CurrencyModel.cs" />
     <Compile Include="Models\ExchangeRateModel.cs" />
-    <Compile Include="Models\ValuteModel.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
